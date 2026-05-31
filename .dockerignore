@@ -1,0 +1,17 @@
+**/bin/
+**/obj/
+**/.vs/
+**/.vscode/
+**/.idea/
+**/*.user
+**/.DS_Store
+.git/
+.gitignore
+README.md
+docs/
+scripts/
+grafana/
+prometheus/
+loki/
+tempo/
+otel-collector/

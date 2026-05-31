@@ -1,0 +1,172 @@
+name: observability-demo
+
+services:
+  # ---------- Application services ----------
+  api:
+    build:
+      context: .
+      dockerfile: src/Api/Dockerfile
+    container_name: demo-api
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - ASPNETCORE_ENVIRONMENT=Development
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+      - OTEL_SERVICE_NAME=demo-api
+      - OTEL_RESOURCE_ATTRIBUTES=service.namespace=demo,deployment.environment=local
+      - ConnectionStrings__Postgres=Host=postgres;Database=demo;Username=demo;Password=demo
+      - ExternalService__BaseUrl=http://external-service:8090
+      - RabbitMq__Host=rabbitmq
+      - RabbitMq__User=guest
+      - RabbitMq__Password=guest
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+      external-service:
+        condition: service_started
+
+  worker:
+    build:
+      context: .
+      dockerfile: src/Worker/Dockerfile
+    container_name: demo-worker
+    environment:
+      - DOTNET_ENVIRONMENT=Development
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+      - OTEL_SERVICE_NAME=demo-worker
+      - OTEL_RESOURCE_ATTRIBUTES=service.namespace=demo,deployment.environment=local
+      - ConnectionStrings__Postgres=Host=postgres;Database=demo;Username=demo;Password=demo
+      - RabbitMq__Host=rabbitmq
+      - RabbitMq__User=guest
+      - RabbitMq__Password=guest
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+
+  external-service:
+    build:
+      context: .
+      dockerfile: src/ExternalService/Dockerfile
+    container_name: demo-external
+    ports:
+      - "8090:8090"
+    environment:
+      - ASPNETCORE_URLS=http://+:8090
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+      - OTEL_SERVICE_NAME=demo-external
+      - OTEL_RESOURCE_ATTRIBUTES=service.namespace=demo,deployment.environment=local
+      # Fault-injection knobs - change at runtime via /admin endpoints
+      - Faults__LatencyMs=0
+      - Faults__ErrorRate=0
+    depends_on:
+      otel-collector:
+        condition: service_started
+
+  # ---------- Infrastructure ----------
+  postgres:
+    image: postgres:16-alpine
+    container_name: demo-postgres
+    environment:
+      - POSTGRES_DB=demo
+      - POSTGRES_USER=demo
+      - POSTGRES_PASSWORD=demo
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: demo-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ---------- Telemetry pipeline ----------
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.110.0
+    container_name: demo-otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector/config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "8888:8888"   # Collector self-telemetry
+      - "8889:8889"   # Prometheus exporter
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+
+  # ---------- Backends ----------
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: demo-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --enable-feature=exemplar-storage
+      - --web.enable-remote-write-receiver
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+
+  loki:
+    image: grafana/loki:3.2.0
+    container_name: demo-loki
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
+    ports:
+      - "3100:3100"
+
+  tempo:
+    image: grafana/tempo:2.6.0
+    container_name: demo-tempo
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo/tempo-config.yaml:/etc/tempo.yaml:ro
+    ports:
+      - "3200:3200"    # tempo HTTP
+      - "9095:9095"    # tempo gRPC
+      - "4319:4317"    # OTLP gRPC into tempo (exposed on host as 4319 to avoid clash)
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: demo-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
