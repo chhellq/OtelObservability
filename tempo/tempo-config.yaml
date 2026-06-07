@@ -11,7 +11,9 @@ distributor:
           endpoint: 0.0.0.0:4318
 
 ingester:
-  max_block_duration: 5m
+  max_block_duration: 30s
+  trace_idle_period: 10s
+  flush_check_period: 10s
 
 compactor:
   compaction:

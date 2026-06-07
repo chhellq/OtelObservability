@@ -10,7 +10,7 @@ datasources:
     jsonData:
       timeInterval: 15s
       exemplarTraceIdDestinations:
-        - name: trace_id
+        - name: traceID
           datasourceUid: tempo
 
   - name: Loki
@@ -19,16 +19,11 @@ datasources:
     uid: loki
     url: http://loki:3100
     jsonData:
-      # Link log entries to traces: when Loki sees a trace_id field
-      # in a log line, clicking it jumps to the trace in Tempo.
       derivedFields:
         - datasourceUid: tempo
-          matcherRegex: '"trace_id":"(\w+)"'
+          matcherType: label
+          matcherRegex: trace_id
           name: TraceID
-          url: '$${__value.raw}'
-        - datasourceUid: tempo
-          matcherRegex: 'trace_id=(\w+)'
-          name: TraceIDPlain
           url: '$${__value.raw}'
 
   - name: Tempo
@@ -40,12 +35,12 @@ datasources:
       # Jump from trace span -> related logs in Loki
       tracesToLogsV2:
         datasourceUid: loki
-        spanStartTimeShift: '-5m'
-        spanEndTimeShift: '5m'
+        spanStartTimeShift: '-1m'
+        spanEndTimeShift: '1m'
         tags:
           - key: service.name
             value: service_name
-        filterByTraceID: true
+        filterByTraceID: false
         filterBySpanID: false
       # Jump from trace -> RED metrics in Prometheus
       tracesToMetrics:

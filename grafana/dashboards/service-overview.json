@@ -41,8 +41,8 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum by (service_name) (rate(traces_spanmetrics_calls_total[1m]))",
-          "legendFormat": "{{service_name}}",
+          "expr": "sum by (service) (rate(traces_spanmetrics_calls_total[1m]))",
+          "legendFormat": "{{service}}",
           "range": true,
           "refId": "A"
         }
@@ -58,7 +58,13 @@
           "custom": { "axisCenteredZero": false, "axisColorMode": "text", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
           "mappings": [],
           "thresholds": { "mode": "absolute", "steps": [{ "color": "green" }, { "color": "red", "value": 0.05 }] },
-          "unit": "percentunit"
+          "unit": "percentunit",
+          "links": [
+            {
+              "title": "Visa felande traces i Tempo",
+              "url": "/explore?orgId=1&left={\"datasource\":\"tempo\",\"queries\":[{\"refId\":\"A\",\"queryType\":\"traceql\",\"query\":\"{status=error}\",\"limit\":20,\"tableType\":\"traces\"}],\"range\":{\"from\":\"now-15m\",\"to\":\"now\"}}"
+            }
+          ]
         },
         "overrides": []
       },
@@ -72,8 +78,8 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum by (service_name) (rate(traces_spanmetrics_calls_total{status_code=\"STATUS_CODE_ERROR\"}[1m])) / sum by (service_name) (rate(traces_spanmetrics_calls_total[1m]))",
-          "legendFormat": "{{service_name}}",
+          "expr": "sum by (service) (rate(traces_spanmetrics_calls_total{status_code=\"STATUS_CODE_ERROR\"}[1m])) / sum by (service) (rate(traces_spanmetrics_calls_total[1m]))",
+          "legendFormat": "{{service}}",
           "range": true,
           "refId": "A"
         }
@@ -89,7 +95,13 @@
           "custom": { "axisCenteredZero": false, "axisColorMode": "text", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "showPoints": "never", "spanNulls": false },
           "mappings": [],
           "thresholds": { "mode": "absolute", "steps": [{ "color": "green" }] },
-          "unit": "s"
+          "unit": "s",
+          "links": [
+            {
+              "title": "Visa traces i Tempo",
+              "url": "/explore?orgId=1&left={\"datasource\":\"tempo\",\"queries\":[{\"refId\":\"A\",\"queryType\":\"traceql\",\"query\":\"{}\",\"limit\":20,\"tableType\":\"traces\"}],\"range\":{\"from\":\"now-15m\",\"to\":\"now\"}}"
+            }
+          ]
         },
         "overrides": []
       },
@@ -103,16 +115,18 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (service_name, le) (rate(traces_spanmetrics_latency_bucket[5m])))",
-          "legendFormat": "p95 {{service_name}}",
+          "exemplar": true,
+          "expr": "histogram_quantile(0.95, sum by (service, le) (rate(traces_spanmetrics_latency_bucket[1m])))",
+          "legendFormat": "p95 {{service}}",
           "range": true,
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.50, sum by (service_name, le) (rate(traces_spanmetrics_latency_bucket[5m])))",
-          "legendFormat": "p50 {{service_name}}",
+          "exemplar": true,
+          "expr": "histogram_quantile(0.50, sum by (service, le) (rate(traces_spanmetrics_latency_bucket[1m])))",
+          "legendFormat": "p50 {{service}}",
           "range": true,
           "refId": "B"
         }
@@ -152,8 +166,28 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "loki", "uid": "loki" },
+      "datasource": { "type": "tempo", "uid": "tempo" },
       "gridPos": { "h": 10, "w": 24, "x": 0, "y": 16 },
+      "id": 6,
+      "options": {},
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "limit": 20,
+          "spss": 3,
+          "queryType": "traceql",
+          "query": "{}",
+          "refId": "A",
+          "tableType": "traces",
+          "filters": []
+        }
+      ],
+      "title": "Recent traces (click to open waterfall)",
+      "type": "traces"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 26 },
       "id": 5,
       "options": {
         "dedupStrategy": "none",
